@@ -354,6 +354,7 @@ Demandes de liaison compte -> participant, validees par un admin.
 - `auth_user_id uuid not null references auth.users on delete cascade`
 - `participant_id uuid not null references participants`
 - `status text not null default 'PENDING' check (status in ('PENDING','APPROVED','REJECTED'))`
+- `requester_email text` - email du compte demandeur (lu dans le JWT), affiche a l'admin pour eviter qu'un inconnu reclame le nom d'un collegue
 - `created_at`, `decided_at timestamptz null`, `decided_by uuid null references participants`
 
 Contrainte : une seule demande `PENDING` par `auth_user_id` (index unique partiel).

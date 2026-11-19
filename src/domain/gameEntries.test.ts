@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   changePaymentType,
+  countByPaymentType,
+  gameDebts,
   gameTotal,
   newEntry,
+  payerSummaries,
   setPaidByForAll,
   setPaymentTypeForAll,
   validateEntries,
@@ -86,5 +89,34 @@ describe('validateEntries', () => {
     expect(validateEntries([{ ...entry, paymentType: 'FREE', amountCents: 100 }])).toEqual([
       'FREE_NOT_ZERO',
     ])
+  })
+})
+
+describe('game recap', () => {
+  // Spec example: A pays 3 CSE tickets, D pays her own regular place.
+  const entries: GameEntry[] = [
+    newEntry('A', 'CSE_TICKET', PRICES),
+    { ...newEntry('B', 'CSE_TICKET', PRICES), paidById: 'A' },
+    { ...newEntry('C', 'CSE_TICKET', PRICES), paidById: 'A' },
+    newEntry('D', 'REGULAR', PRICES),
+  ]
+
+  it('lists what each player owes to the payer', () => {
+    expect(gameDebts(entries)).toEqual([
+      { fromId: 'B', toId: 'A', amountCents: 550 },
+      { fromId: 'C', toId: 'A', amountCents: 550 },
+    ])
+  })
+
+  it('ignores free places paid by someone else', () => {
+    expect(gameDebts([{ ...newEntry('B', 'FREE', PRICES), paidById: 'A' }])).toEqual([])
+  })
+
+  it('summarises payers', () => {
+    expect(payerSummaries(entries)).toEqual([
+      { payerId: 'A', places: 3, amountCents: 1650, paymentTypes: ['CSE_TICKET'] },
+      { payerId: 'D', places: 1, amountCents: 1300, paymentTypes: ['REGULAR'] },
+    ])
+    expect(countByPaymentType(entries)).toEqual({ CSE_TICKET: 3, REGULAR: 1 })
   })
 })

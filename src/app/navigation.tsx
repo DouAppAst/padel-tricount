@@ -8,13 +8,14 @@ export interface NavItem {
   label: string
   path: string
   icon: ReactElement
+  adminOnly?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Accueil', path: '/', icon: <HomeIcon /> },
   { label: 'Parties', path: '/parties', icon: <SportsTennisIcon /> },
   { label: 'Soldes', path: '/soldes', icon: <AccountBalanceWalletIcon /> },
-  { label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon /> },
+  { label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon />, adminOnly: true },
 ]
 
 export const NEW_GAME_PATH = '/parties/nouvelle'

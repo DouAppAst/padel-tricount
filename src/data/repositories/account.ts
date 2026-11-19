@@ -91,6 +91,7 @@ export async function requestLink(participantId: ParticipantId): Promise<void> {
 export interface PendingLinkRequest {
   id: string
   participantId: ParticipantId
+  requesterEmail: string | null
   createdAt: string
 }
 
@@ -99,14 +100,17 @@ export async function listPendingLinkRequests(): Promise<PendingLinkRequest[]> {
   const rows = unwrap(
     await supabase()
       .from('link_requests')
-      .select('id, participant_id, created_at')
+      .select('id, participant_id, requester_email, created_at')
       .eq('status', 'PENDING')
       .order('created_at')
-      .returns<{ id: string; participant_id: string; created_at: string }[]>(),
+      .returns<
+        { id: string; participant_id: string; requester_email: string | null; created_at: string }[]
+      >(),
   )
   return rows.map((row) => ({
     id: row.id,
     participantId: row.participant_id,
+    requesterEmail: row.requester_email,
     createdAt: row.created_at,
   }))
 }

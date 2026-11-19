@@ -12,7 +12,8 @@ export const DB_ERROR_CODES = [
   'LAST_ADMIN',
 ] as const
 
-export type ApiErrorCode = (typeof DB_ERROR_CODES)[number] | 'DUPLICATE' | 'INVALID' | 'UNKNOWN'
+export type ApiErrorCode =
+  (typeof DB_ERROR_CODES)[number] | 'DUPLICATE' | 'IN_USE' | 'INVALID' | 'UNKNOWN'
 
 export class ApiError extends Error {
   readonly code: ApiErrorCode
@@ -33,6 +34,7 @@ export function toApiError(error: PostgrestLikeError): ApiError {
   const known = DB_ERROR_CODES.find((code) => code === error.message)
   if (known) return new ApiError(known, error.message)
   if (error.code === '23505') return new ApiError('DUPLICATE', error.message)
+  if (error.code === '23503') return new ApiError('IN_USE', error.message)
   if (error.code === '23514' || error.code === '22023' || error.code === '23502') {
     return new ApiError('INVALID', error.message)
   }

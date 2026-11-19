@@ -1,4 +1,4 @@
-import type { Cents, GameEntry, ParticipantId, PaymentType, Prices } from './models'
+import type { Cents, GameEntry, ParticipantId, PaymentType, Prices, Transfer } from './models'
 
 /** Default amount for a payment type. CUSTOM has no default and starts at 0. */
 export function defaultAmount(paymentType: PaymentType, prices: Prices): Cents {
@@ -73,4 +73,52 @@ export function validateEntries(entries: GameEntry[]): EntryValidationError[] {
     if (entry.paymentType === 'FREE' && entry.amountCents !== 0) errors.add('FREE_NOT_ZERO')
   }
   return [...errors]
+}
+
+/** What each player owes to whoever paid their place in this game, aggregated per pair. */
+export function gameDebts(entries: GameEntry[]): Transfer[] {
+  const byPair = new Map<string, Transfer>()
+  for (const entry of entries) {
+    if (entry.paidById === entry.playerId || entry.amountCents === 0) continue
+    const key = `${entry.playerId}->${entry.paidById}`
+    const existing = byPair.get(key)
+    if (existing) existing.amountCents += entry.amountCents
+    else
+      byPair.set(key, {
+        fromId: entry.playerId,
+        toId: entry.paidById,
+        amountCents: entry.amountCents,
+      })
+  }
+  return [...byPair.values()]
+}
+
+export interface PayerSummary {
+  payerId: ParticipantId
+  places: number
+  amountCents: Cents
+  paymentTypes: PaymentType[]
+}
+
+/** Who advanced how many places, in order of first appearance. */
+export function payerSummaries(entries: GameEntry[]): PayerSummary[] {
+  const byPayer = new Map<ParticipantId, PayerSummary>()
+  for (const entry of entries) {
+    let summary = byPayer.get(entry.paidById)
+    if (!summary) {
+      summary = { payerId: entry.paidById, places: 0, amountCents: 0, paymentTypes: [] }
+      byPayer.set(entry.paidById, summary)
+    }
+    summary.places += 1
+    summary.amountCents += entry.amountCents
+    if (!summary.paymentTypes.includes(entry.paymentType))
+      summary.paymentTypes.push(entry.paymentType)
+  }
+  return [...byPayer.values()]
+}
+
+export function countByPaymentType(entries: GameEntry[]): Partial<Record<PaymentType, number>> {
+  const counts: Partial<Record<PaymentType, number>> = {}
+  for (const entry of entries) counts[entry.paymentType] = (counts[entry.paymentType] ?? 0) + 1
+  return counts
 }

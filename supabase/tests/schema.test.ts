@@ -14,8 +14,11 @@ const SUPABASE_STUB = `
   create function auth.uid() returns uuid language sql stable as $$
     select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
   $$;
+  create function auth.jwt() returns jsonb language sql stable as $$
+    select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+  $$;
   grant usage on schema auth to anon, authenticated;
-  grant execute on function auth.uid() to anon, authenticated;
+  grant execute on function auth.uid(), auth.jwt() to anon, authenticated;
   grant usage on schema public to anon, authenticated;
   alter default privileges in schema public grant all on tables to anon, authenticated;
   alter default privileges in schema public grant all on functions to anon, authenticated;
@@ -82,7 +85,7 @@ function as<T>(who: Who, fn: (tx: Transaction) => Promise<T>): Promise<T> {
       await tx.exec('set local role anon')
     } else {
       await tx.query(`select set_config('request.jwt.claims', $1, true)`, [
-        JSON.stringify({ sub: U[who], role: 'authenticated' }),
+        JSON.stringify({ sub: U[who], role: 'authenticated', email: `${who}@example.com` }),
       ])
       await tx.exec('set local role authenticated')
     }
@@ -214,7 +217,9 @@ describe('authenticated user not linked to a participant', () => {
     await rows('stranger', 'select public.request_link($1)', [P.chloe])
     expect(await rows('stranger', 'select * from public.link_requests')).toHaveLength(1)
     expect(await rows('alice', 'select * from public.link_requests')).toHaveLength(0)
-    expect(await rows('admin', 'select * from public.link_requests')).toHaveLength(1)
+    expect(await rows('admin', 'select requester_email from public.link_requests')).toEqual([
+      { requester_email: 'stranger@example.com' },
+    ])
   })
 })
 

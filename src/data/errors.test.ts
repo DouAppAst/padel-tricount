@@ -7,6 +7,7 @@ describe('toApiError', () => {
     [{ message: 'LAST_ADMIN', code: 'P0001' }, 'LAST_ADMIN'],
     [{ message: 'duplicate key value violates unique constraint', code: '23505' }, 'DUPLICATE'],
     [{ message: 'new row violates check constraint', code: '23514' }, 'INVALID'],
+    [{ message: 'update or delete violates foreign key constraint', code: '23503' }, 'IN_USE'],
     [{ message: 'permission denied for table games', code: '42501' }, 'UNKNOWN'],
   ])('%j -> %s', (error, code) => {
     expect(toApiError(error).code).toBe(code)
