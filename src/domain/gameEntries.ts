@@ -1,10 +1,12 @@
 import type { Cents, GameEntry, ParticipantId, PaymentType, Prices, Transfer } from './models'
 
+export const acceptsCse = (prices: Prices) => prices.cseTicketCents !== null
+
 /** Default amount for a payment type. CUSTOM has no default and starts at 0. */
 export function defaultAmount(paymentType: PaymentType, prices: Prices): Cents {
   switch (paymentType) {
     case 'CSE_TICKET':
-      return prices.cseTicketCents
+      return prices.cseTicketCents ?? prices.regularCents
     case 'REGULAR':
       return prices.regularCents
     case 'FREE':
@@ -48,6 +50,39 @@ export function setPaymentTypeForAll(
   prices: Prices,
 ): GameEntry[] {
   return entries.map((entry) => changePaymentType(entry, paymentType, prices))
+}
+
+/**
+ * Applies another club's prices: CSE tickets and regular places are repriced
+ * (CSE becomes regular where tickets are not accepted); free and custom places are kept.
+ */
+export function applyPrices(entries: GameEntry[], prices: Prices): GameEntry[] {
+  return entries.map((entry) => {
+    if (entry.paymentType === 'CSE_TICKET' && acceptsCse(prices)) {
+      return { ...entry, amountCents: prices.cseTicketCents ?? 0 }
+    }
+    if (entry.paymentType === 'CSE_TICKET' || entry.paymentType === 'REGULAR') {
+      return { ...entry, paymentType: 'REGULAR', amountCents: prices.regularCents }
+    }
+    return entry
+  })
+}
+
+/** Splits a total into `count` amounts differing by at most one cent, larger ones first. */
+export function splitEvenly(totalCents: Cents, count: number): Cents[] {
+  if (!Number.isSafeInteger(totalCents) || totalCents < 0 || count <= 0) return []
+  const base = Math.floor(totalCents / count)
+  const remainder = totalCents - base * count
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0))
+}
+
+/** Gives every entry a custom amount, in order (see splitEvenly). */
+export function setCustomAmounts(entries: GameEntry[], amounts: Cents[]): GameEntry[] {
+  return entries.map((entry, i) => ({
+    ...entry,
+    paymentType: 'CUSTOM',
+    amountCents: amounts[i] ?? entry.amountCents,
+  }))
 }
 
 export function setPaidByForAll(entries: GameEntry[], paidById: ParticipantId): GameEntry[] {

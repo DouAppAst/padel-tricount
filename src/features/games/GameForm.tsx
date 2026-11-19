@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -17,16 +18,18 @@ import {
 import { useMemo, useState } from 'react'
 import { errorMessage } from '../../components/errorMessage'
 import { ErrorAlert, Loading } from '../../components/Feedback'
-import { useGames, useParticipants, useSaveGame, useSettings } from '../../data/queries'
+import { useGames, useParticipants, useSaveGame, useSettings, useVenues } from '../../data/queries'
 import type { ParticipantWithAccount } from '../../data/repositories/participants'
-import type { AppSettings } from '../../data/repositories/settings'
 import { todayIso } from '../../domain/dates'
 import {
+  acceptsCse,
+  applyPrices,
   changePaymentType,
   gameDebts,
   gameTotal,
   newEntry,
   payerSummaries,
+  setCustomAmounts,
   setPaidByForAll,
   setPaymentTypeForAll,
   validateEntries,
@@ -34,13 +37,17 @@ import {
 } from '../../domain/gameEntries'
 import {
   PAYMENT_TYPES,
+  type Cents,
   type Game,
   type GameEntry,
   type ParticipantId,
   type PaymentType,
+  type Prices,
+  type Venue,
 } from '../../domain/models'
 import { centsToInput, formatCents, parseEuros } from '../../domain/money'
 import { PAYMENT_LABELS, placesLabel } from './labels'
+import { SpecialPriceDialog } from './SpecialPriceDialog'
 
 const VALIDATION_MESSAGES: Record<EntryValidationError, string> = {
   NO_PLAYER: 'Sélectionne au moins un joueur.',
@@ -62,39 +69,49 @@ interface GameFormProps {
 export function GameForm(props: GameFormProps) {
   const participants = useParticipants()
   const settings = useSettings()
+  const venues = useVenues()
   const games = useGames()
 
-  if (participants.isPending || settings.isPending || games.isPending) return <Loading />
-  const error = participants.error ?? settings.error ?? games.error
+  if (participants.isPending || settings.isPending || venues.isPending || games.isPending) {
+    return <Loading />
+  }
+  const error = participants.error ?? settings.error ?? venues.error ?? games.error
   if (error) return <ErrorAlert error={error} />
 
   return (
     <GameFormContent
       {...props}
       participants={participants.data ?? []}
-      settings={settings.data!}
+      venues={venues.data ?? []}
+      defaultVenue={venues.data?.find((v) => v.id === settings.data?.defaultVenueId)}
       lastGame={games.data?.find((g) => !g.deletedAt)}
     />
   )
 }
 
+const FALLBACK_PRICES: Prices = { regularCents: 0, cseTicketCents: null }
+
+const findVenue = (venues: Venue[], name: string) =>
+  venues.find((v) => v.name.toLowerCase() === name.trim().toLowerCase())
+
 function initialEntries(
-  props: GameFormProps,
+  game: Game | undefined,
   participants: ParticipantWithAccount[],
-  settings: AppSettings,
+  prices: Prices,
   lastGame: Game | undefined,
 ): GameEntry[] {
-  if (props.game) return props.game.entries
+  if (game) return game.entries
   const active = new Set(participants.filter((p) => p.active).map((p) => p.id))
-  return (lastGame?.entries ?? [])
+  const entries = (lastGame?.entries ?? [])
     .filter((entry) => active.has(entry.playerId))
     .map((entry) =>
       newEntry(
         entry.playerId,
         entry.paymentType === 'CUSTOM' ? 'CSE_TICKET' : entry.paymentType,
-        settings.prices,
+        prices,
       ),
     )
+  return applyPrices(entries, prices)
 }
 
 function GameFormContent({
@@ -102,22 +119,28 @@ function GameFormContent({
   onSaved,
   onCancel,
   participants,
-  settings,
+  venues,
+  defaultVenue,
   lastGame,
 }: GameFormProps & {
   participants: ParticipantWithAccount[]
-  settings: AppSettings
+  venues: Venue[]
+  defaultVenue: Venue | undefined
   lastGame: Game | undefined
 }) {
   const saveGame = useSaveGame()
-  const prices = settings.prices
 
   const [playedAt, setPlayedAt] = useState(game?.playedAt ?? todayIso())
-  const [location, setLocation] = useState(game?.location ?? settings.defaultLocation)
+  const [location, setLocation] = useState(game?.location ?? defaultVenue?.name ?? '')
+  // Prices of the selected club; an unknown location keeps the previous prices.
+  const [prices, setPrices] = useState<Prices>(
+    () => (game ? findVenue(venues, game.location) : undefined) ?? defaultVenue ?? FALLBACK_PRICES,
+  )
   const [comment, setComment] = useState(game?.comment ?? '')
   const [entries, setEntries] = useState<GameEntry[]>(() =>
-    initialEntries({ game, onSaved, onCancel }, participants, settings, lastGame),
+    initialEntries(game, participants, prices, lastGame),
   )
+  const [specialPriceOpen, setSpecialPriceOpen] = useState(false)
   const [customInputs, setCustomInputs] = useState<Record<ParticipantId, string>>(() =>
     Object.fromEntries(entries.map((e) => [e.playerId, centsToInput(e.amountCents)])),
   )
@@ -154,11 +177,14 @@ function GameFormContent({
       setEntries(entries.filter((e) => e.playerId !== id))
       return
     }
+    const preferred = acceptsCse(prices) ? 'CSE_TICKET' : 'REGULAR'
     const type =
-      entries[0]?.paymentType === 'CUSTOM'
-        ? 'CSE_TICKET'
-        : (entries[0]?.paymentType ?? 'CSE_TICKET')
-    const entry = newEntry(id, type, prices)
+      !entries[0] || entries[0].paymentType === 'CUSTOM' ? preferred : entries[0].paymentType
+    const entry = newEntry(
+      id,
+      type === 'CSE_TICKET' && !acceptsCse(prices) ? 'REGULAR' : type,
+      prices,
+    )
     setCustomInputs({ ...customInputs, [id]: centsToInput(entry.amountCents) })
     setEntries([...entries, entry])
   }
@@ -180,6 +206,26 @@ function GameFormContent({
     const cents = parseEuros(input)
     if (cents !== null) updateEntry(playerId, (e) => ({ ...e, amountCents: cents }))
   }
+
+  function selectLocation(name: string) {
+    setLocation(name)
+    const venue = findVenue(venues, name)
+    if (venue) {
+      setPrices(venue)
+      setEntries(applyPrices(entries, venue))
+    }
+  }
+
+  function applySpecialPrice(amounts: Cents[]) {
+    // Amounts follow the displayed (alphabetical) order of the players.
+    const updated = setCustomAmounts(sortedEntries, amounts)
+    setEntries(updated)
+    setCustomInputs(
+      Object.fromEntries(updated.map((e) => [e.playerId, centsToInput(e.amountCents)])),
+    )
+  }
+
+  const showCse = acceptsCse(prices) || entries.some((e) => e.paymentType === 'CSE_TICKET')
 
   function setAllPaidBy(value: string) {
     setEntries(
@@ -211,12 +257,31 @@ function GameFormContent({
               slotProps={{ inputLabel: { shrink: true } }}
               required
             />
-            <TextField
-              label="Lieu"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              slotProps={{ htmlInput: { maxLength: 100 } }}
+            <Autocomplete
+              freeSolo
               fullWidth
+              options={venues.filter((v) => v.active).map((v) => v.name)}
+              value={location}
+              inputValue={location}
+              onInputChange={(_, value, reason) =>
+                reason === 'input' ? setLocation(value) : undefined
+              }
+              onChange={(_, value) => selectLocation(value ?? '')}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Lieu"
+                  helperText={`Prix : classique ${formatCents(prices.regularCents)}${
+                    prices.cseTicketCents === null
+                      ? ', pas de ticket CSE'
+                      : `, ticket CSE ${formatCents(prices.cseTicketCents)}`
+                  }`}
+                  slotProps={{
+                    ...params.slotProps,
+                    htmlInput: { ...params.slotProps.htmlInput, maxLength: 100 },
+                  }}
+                />
+              )}
             />
           </Stack>
         </CardContent>
@@ -248,19 +313,24 @@ function GameFormContent({
           <CardContent>
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => setEntries(setPaymentTypeForAll(entries, 'CSE_TICKET', prices))}
-                >
-                  Tout en ticket CSE
-                </Button>
+                {acceptsCse(prices) && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setEntries(setPaymentTypeForAll(entries, 'CSE_TICKET', prices))}
+                  >
+                    Tout en ticket CSE
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   size="small"
                   onClick={() => setEntries(setPaymentTypeForAll(entries, 'REGULAR', prices))}
                 >
                   Tout en classique
+                </Button>
+                <Button variant="outlined" size="small" onClick={() => setSpecialPriceOpen(true)}>
+                  Prix spécial…
                 </Button>
                 <TextField
                   select
@@ -300,11 +370,13 @@ function GameFormContent({
                     }
                     aria-label={`Mode de paiement de ${nameOf(entry.playerId)}`}
                   >
-                    {PAYMENT_TYPES.map((type) => (
-                      <ToggleButton key={type} value={type} sx={{ px: 1.5 }}>
-                        {PAYMENT_LABELS[type]}
-                      </ToggleButton>
-                    ))}
+                    {PAYMENT_TYPES.filter((type) => type !== 'CSE_TICKET' || showCse).map(
+                      (type) => (
+                        <ToggleButton key={type} value={type} sx={{ px: 1.5 }}>
+                          {PAYMENT_LABELS[type]}
+                        </ToggleButton>
+                      ),
+                    )}
                   </ToggleButtonGroup>
                   {entry.paymentType === 'CUSTOM' ? (
                     <TextField
@@ -397,6 +469,14 @@ function GameFormContent({
           {game ? 'Enregistrer les modifications' : 'Enregistrer la partie'}
         </Button>
       </Stack>
+
+      {specialPriceOpen && (
+        <SpecialPriceDialog
+          playerCount={entries.length}
+          onApply={applySpecialPrice}
+          onClose={() => setSpecialPriceOpen(false)}
+        />
+      )}
     </Stack>
   )
 }

@@ -8,6 +8,7 @@ import * as games from './repositories/games'
 import * as participants from './repositories/participants'
 import * as settings from './repositories/settings'
 import * as settlements from './repositories/settlements'
+import * as venues from './repositories/venues'
 
 export const queryKeys = {
   myStatus: ['myStatus'],
@@ -15,6 +16,7 @@ export const queryKeys = {
   linkRequests: ['linkRequests'],
   participants: ['participants'],
   settings: ['settings'],
+  venues: ['venues'],
   games: ['games'],
   settlements: ['settlements'],
 } as const satisfies Record<string, QueryKey>
@@ -29,6 +31,7 @@ export const useParticipants = () =>
   useQuery({ queryKey: queryKeys.participants, queryFn: participants.listParticipants })
 export const useSettings = () =>
   useQuery({ queryKey: queryKeys.settings, queryFn: settings.getSettings })
+export const useVenues = () => useQuery({ queryKey: queryKeys.venues, queryFn: venues.listVenues })
 export const useGames = () => useQuery({ queryKey: queryKeys.games, queryFn: games.listGames })
 export const useSettlements = () =>
   useQuery({ queryKey: queryKeys.settlements, queryFn: settlements.listSettlements })
@@ -64,8 +67,19 @@ export const useUpdateParticipant = () =>
 export const useDeleteParticipant = () =>
   useInvalidatingMutation(participants.deleteParticipant, [queryKeys.participants])
 
-export const useUpdateSettings = () =>
-  useInvalidatingMutation(settings.updateSettings, [queryKeys.settings])
+export const useSetDefaultVenue = () =>
+  useInvalidatingMutation(settings.setDefaultVenue, [queryKeys.settings])
+export const useCreateVenue = () => useInvalidatingMutation(venues.createVenue, [queryKeys.venues])
+export const useUpdateVenue = () =>
+  useInvalidatingMutation(
+    ({ id, input }: { id: string; input: venues.VenueInput }) => venues.updateVenue(id, input),
+    [queryKeys.venues],
+  )
+export const useSetVenueActive = () =>
+  useInvalidatingMutation(
+    ({ id, active }: { id: string; active: boolean }) => venues.setVenueActive(id, active),
+    [queryKeys.venues],
+  )
 
 export const useSaveGame = () => useInvalidatingMutation(games.saveGame, [queryKeys.games])
 export const useSetGameDeleted = () =>

@@ -115,7 +115,15 @@ const saveGame = (who: Who, entries: unknown, gameId: string | null = null) =>
     JSON.stringify(entries),
   ]).then((r) => r.id)
 
-const TABLES = ['participants', 'settings', 'games', 'game_entries', 'settlements', 'link_requests']
+const TABLES = [
+  'participants',
+  'settings',
+  'venues',
+  'games',
+  'game_entries',
+  'settlements',
+  'link_requests',
+]
 
 describe('anonymous visitors', () => {
   it.each(TABLES)('cannot read %s', async (table) => {
@@ -346,23 +354,20 @@ describe('participants and settings administration', () => {
     await expect(
       rows('alice', `insert into public.participants (display_name) values ('Eve')`),
     ).rejects.toThrow(/row-level security/)
-    await rows('alice', 'update public.settings set cse_ticket_price_cents = 1')
-    expect(
-      (await one('alice', 'select cse_ticket_price_cents from public.settings'))
-        .cse_ticket_price_cents,
-    ).toBe(550)
+    await rows('alice', 'update public.settings set default_venue_id = null')
+    expect(await count('settings where default_venue_id is not null')).toBe(1)
   })
 
-  it('admins manage participants and settings', async () => {
+  it('admins manage participants and the default club', async () => {
     await rows('admin', `insert into public.participants (display_name) values ('Eve')`)
-    await rows('admin', 'update public.settings set cse_ticket_price_cents = 600')
+    const { id } = await one<{ id: string }>(
+      'admin',
+      `insert into public.venues (name, regular_price_cents) values ('Cugnaux', 800) returning id`,
+    )
+    await rows('admin', 'update public.settings set default_venue_id = $1', [id])
     expect(
-      (await one('alice', 'select cse_ticket_price_cents from public.settings'))
-        .cse_ticket_price_cents,
-    ).toBe(600)
-    await expect(
-      rows('admin', 'update public.settings set regular_price_cents = -1'),
-    ).rejects.toThrow(/check constraint/)
+      (await one('alice', 'select default_venue_id from public.settings')).default_venue_id,
+    ).toBe(id)
   })
 
   it('rejects duplicate active names, case-insensitively', async () => {
@@ -401,5 +406,53 @@ describe('participants and settings administration', () => {
     ).rows[0]
     expect(bob.auth_user_id).toBeNull()
     expect(await count('game_entries')).toBe(1)
+  })
+})
+
+describe('venues', () => {
+  it('the previous settings became the default club', async () => {
+    expect(
+      await rows(
+        'alice',
+        `select v.name, v.regular_price_cents, v.cse_ticket_price_cents
+         from public.settings s join public.venues v on v.id = s.default_venue_id`,
+      ),
+    ).toEqual([
+      { name: 'Toulouse Padel Club', regular_price_cents: 1300, cse_ticket_price_cents: 550 },
+    ])
+  })
+
+  it('a game without location uses the default club name', async () => {
+    const id = await saveGame('alice', [entry(P.alice, P.alice)])
+    expect(
+      (await one('alice', 'select location from public.games where id = $1', [id])).location,
+    ).toBe('Toulouse Padel Club')
+  })
+
+  it('members read clubs but only admins write them', async () => {
+    expect(await rows('alice', 'select name from public.venues')).toHaveLength(1)
+    await expect(
+      rows('alice', `insert into public.venues (name, regular_price_cents) values ('X', 800)`),
+    ).rejects.toThrow(/row-level security/)
+    await rows('alice', 'update public.venues set regular_price_cents = 1')
+    expect(await count('venues where regular_price_cents = 1300')).toBe(1)
+    await expect(rows('admin', 'delete from public.venues')).rejects.toThrow(/permission denied/)
+  })
+
+  it('validates clubs', async () => {
+    await expect(
+      rows(
+        'admin',
+        `insert into public.venues (name, regular_price_cents) values ('toulouse padel club', 800)`,
+      ),
+    ).rejects.toThrow(/duplicate key/)
+    await expect(
+      rows('admin', `insert into public.venues (name, regular_price_cents) values ('Y', -1)`),
+    ).rejects.toThrow(/check constraint/)
+    await rows(
+      'admin',
+      `insert into public.venues (name, regular_price_cents, cse_ticket_price_cents) values ('Cugnaux', 800, null)`,
+    )
+    expect(await count('venues where cse_ticket_price_cents is null')).toBe(1)
   })
 })

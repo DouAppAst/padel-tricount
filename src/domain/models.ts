@@ -14,8 +14,15 @@ export interface Participant {
 }
 
 export interface Prices {
-  cseTicketCents: Cents
   regularCents: Cents
+  /** null when the club does not accept CSE tickets. */
+  cseTicketCents: Cents | null
+}
+
+export interface Venue extends Prices {
+  id: string
+  name: string
+  active: boolean
 }
 
 export interface GameEntry {

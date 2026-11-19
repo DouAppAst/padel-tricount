@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyPrices,
   changePaymentType,
   countByPaymentType,
   gameDebts,
@@ -7,7 +8,9 @@ import {
   newEntry,
   payerSummaries,
   setPaidByForAll,
+  setCustomAmounts,
   setPaymentTypeForAll,
+  splitEvenly,
   validateEntries,
 } from './gameEntries'
 import type { GameEntry, Prices } from './models'
@@ -118,5 +121,58 @@ describe('game recap', () => {
       { payerId: 'D', places: 1, amountCents: 1300, paymentTypes: ['REGULAR'] },
     ])
     expect(countByPaymentType(entries)).toEqual({ CSE_TICKET: 3, REGULAR: 1 })
+  })
+})
+
+describe('clubs with their own prices', () => {
+  const CUGNAUX: Prices = { regularCents: 800, cseTicketCents: null }
+  const entries: GameEntry[] = [
+    newEntry('A', 'CSE_TICKET', PRICES),
+    newEntry('B', 'REGULAR', PRICES),
+    newEntry('C', 'FREE', PRICES),
+    { ...newEntry('D', 'CUSTOM', PRICES), amountCents: 700 },
+  ]
+
+  it('reprices CSE and regular places, CSE becoming regular where not accepted', () => {
+    expect(applyPrices(entries, CUGNAUX).map((e) => [e.paymentType, e.amountCents])).toEqual([
+      ['REGULAR', 800],
+      ['REGULAR', 800],
+      ['FREE', 0],
+      ['CUSTOM', 700],
+    ])
+  })
+
+  it('keeps CSE tickets where accepted', () => {
+    expect(applyPrices(entries, NEW_PRICES).map((e) => e.amountCents)).toEqual([600, 1400, 0, 700])
+  })
+
+  it('never charges 0 for a CSE ticket where tickets are not accepted', () => {
+    expect(newEntry('A', 'CSE_TICKET', CUGNAUX).amountCents).toBe(800)
+  })
+})
+
+describe('splitEvenly', () => {
+  it.each([
+    [3200, 4, [800, 800, 800, 800]],
+    [1000, 3, [334, 333, 333]],
+    [2, 4, [1, 1, 0, 0]],
+    [0, 2, [0, 0]],
+  ])('%i in %i parts', (total, count, expected) => {
+    const parts = splitEvenly(total, count)
+    expect(parts).toEqual(expected)
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(total)
+  })
+
+  it('rejects invalid input', () => {
+    expect(splitEvenly(100, 0)).toEqual([])
+    expect(splitEvenly(-1, 2)).toEqual([])
+  })
+
+  it('a session total becomes custom amounts', () => {
+    const players = [newEntry('A', 'CSE_TICKET', PRICES), newEntry('B', 'REGULAR', PRICES)]
+    expect(setCustomAmounts(players, splitEvenly(1601, 2))).toMatchObject([
+      { paymentType: 'CUSTOM', amountCents: 801 },
+      { paymentType: 'CUSTOM', amountCents: 800 },
+    ])
   })
 })

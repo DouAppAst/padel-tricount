@@ -41,7 +41,7 @@ import {
 import type { ParticipantWithAccount } from '../../data/repositories/participants'
 import { formatDate } from '../../domain/dates'
 import { OpeningBalancesCard } from './OpeningBalancesCard'
-import { SettingsCard } from './SettingsCard'
+import { VenuesCard } from './VenuesCard'
 
 export function AdminPage() {
   const me = useMe()
@@ -53,7 +53,7 @@ export function AdminPage() {
       </Typography>
       <LinkRequestsCard />
       <ParticipantsCard />
-      <SettingsCard />
+      <VenuesCard />
       <OpeningBalancesCard />
     </Stack>
   )

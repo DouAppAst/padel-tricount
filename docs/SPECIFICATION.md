@@ -126,16 +126,18 @@ Supabase (UE)
 
 ## 4. Regles metier
 
-### Tarifs par defaut
+### Clubs et tarifs (decision 2026-11-19)
+
+Plusieurs clubs, chacun avec ses tarifs (table `venues`, geree par les admins) :
 
 ```text
-CSE_TICKET = 550  centimes (5,50 EUR)
-REGULAR    = 1300 centimes (13,00 EUR)
-FREE       = 0
-CUSTOM     = montant saisi
+Toulouse Padel Club : REGULAR = 1300, CSE_TICKET = 550 (club par defaut)
+Autre club          : REGULAR = son prix, CSE_TICKET = null (tickets CSE refuses)
+FREE                = 0
+CUSTOM              = montant saisi
 ```
 
-Les tarifs sont configurables (table `settings`).
+Les tickets CSE ne sont acceptes qu'au Toulouse Padel Club. A la saisie, choisir un club applique ses prix (un ticket CSE devient tarif classique dans un club qui ne les accepte pas) ; les places offertes et perso sont conservees. Pour un cas ponctuel (club non enregistre, promo), le bouton **Prix special** applique un prix par personne ou repartit un total de session entre les joueurs (centimes repartis). Le lieu reste un texte libre : une partie garde le nom du club meme s'il est renomme.
 
 **Le montant effectivement applique est enregistre dans chaque `game_entries.amount_cents`.** Les tarifs configures ne servent que de valeurs par defaut a la saisie.
 
@@ -315,16 +317,18 @@ Remboursements reels effectues, ou ajustements de reprise.
 
 Contrainte : `check (from_participant_id <> to_participant_id)`.
 
+### `venues`
+
+- `id uuid pk`
+- `name text not null` - unique (insensible a la casse)
+- `regular_price_cents integer not null`
+- `cse_ticket_price_cents integer null` - null = tickets CSE non acceptes
+- `active boolean not null default true` - desactivation plutot que suppression
+- `created_at`, `updated_at`
+
 ### `settings`
 
-Une **ligne unique** avec colonnes typees (plus simple a valider qu'un cle/valeur) :
-
-```text
-id                     = 1 (check id = 1)
-cse_ticket_price_cents = 550
-regular_price_cents    = 1300
-default_location       = 'Toulouse Padel Club'
-```
+Une **ligne unique** (`id = 1`) : `default_venue_id uuid references venues` (club propose par defaut).
 
 ### Fonctions RPC (Postgres `security definer`, `set search_path = ''`)
 
