@@ -31,6 +31,9 @@ export interface Game {
   location: string
   comment?: string | null
   entries: GameEntry[]
+  createdById?: ParticipantId | null
+  updatedById?: ParticipantId | null
+  updatedAt?: string
   deletedAt?: string | null
 }
 
@@ -45,6 +48,8 @@ export interface Settlement {
   kind: SettlementKind
   settledAt: string
   comment?: string | null
+  createdById?: ParticipantId | null
+  updatedAt?: string
   deletedAt?: string | null
 }
 

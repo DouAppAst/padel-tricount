@@ -118,7 +118,7 @@ GitHub Pages (statique, public)
 Supabase (UE)
 ├── Auth (email + mot de passe, aucun email envoye)
 ├── tables : participants, link_requests, games, game_entries, settlements, settings
-├── RPC    : save_game, delete_game, ...
+├── RPC    : save_game, save_settlement, request_link, approve_link, ...
 └── RLS    : sur toutes les tables
 ```
 
@@ -326,11 +326,17 @@ regular_price_cents    = 1300
 default_location       = 'Toulouse Padel Club'
 ```
 
-### Fonctions RPC (Postgres, `security invoker` sauf mention)
+### Fonctions RPC (Postgres `security definer`, `set search_path = ''`)
 
-- `save_game(game jsonb, entries jsonb) returns uuid` - cree **ou** remplace une partie et toutes ses lignes **dans une seule transaction** (delete + insert des `game_entries`). Renseigne `created_by` / `updated_by` depuis `auth.uid()`.
-- `delete_game(game_id uuid)` - pose `deleted_at`.
-- `current_participant_id()` et `is_admin()` - `security definer`, `set search_path = ''`, utilisees par les policies RLS.
+Les ecritures de parties et de remboursements passent **uniquement** par ces fonctions : aucun droit d'ecriture direct sur `games`, `game_entries`, `settlements`. Chaque fonction verifie l'appartenance (`NOT_MEMBER`) ou le role admin (`NOT_ADMIN`) et s'execute dans une seule transaction.
+
+- `save_game(p_game_id, p_played_at, p_location, p_comment, p_entries jsonb) returns uuid` - cree (`p_game_id` null) ou remplace une partie et toutes ses lignes (delete + insert des `game_entries`) ; renseigne `created_by` / `updated_by`.
+- `set_game_deleted(p_game_id, p_deleted)` - suppression logique / restauration.
+- `save_settlement(...)` / `set_settlement_deleted(...)` - `kind = 'OPENING'` reserve aux admins.
+- `get_my_status()`, `linkable_participants()` - accessibles aux comptes non lies (ecran "Qui es-tu ?").
+- Helpers RLS dans le schema `private`, non expose par l'API : `current_participant_id()`, `is_member()`, `is_admin()`.
+- Trigger : un utilisateur de l'application ne peut pas retirer le dernier admin (`LAST_ADMIN`).
+- Droits : `revoke all` puis `grant` minimal au role `authenticated` ; aucun droit pour `anon`.
 
 ### Reprise de l'existant (Excel)
 
@@ -491,7 +497,7 @@ Le service d'email integre de Supabase **n'envoie qu'aux adresses membres de l'e
 - **RLS active sur toutes les tables**, aucun acces au role `anon`.
 - Fonctions `security definer` : `set search_path = ''` et noms qualifies.
 - Validation des montants en base (contraintes section 7), pas seulement dans React.
-- Aucune donnee personnelle ou financiere dans le repository (le `seed.sql` utilise des noms fictifs).
+- Aucune donnee personnelle ou financiere dans le repository (les tests utilisent des noms fictifs).
 
 Matrice d'autorisations (MVP, groupe de confiance) :
 
@@ -558,13 +564,12 @@ padel-tricount/
 │   │   └── debtSimplification.ts
 │   ├── data/
 │   │   ├── supabaseClient.ts
-│   │   ├── database.types.ts  # genere : supabase gen types typescript
+│   │   ├── errors.ts          # codes d'erreur metier renvoyes par la base
 │   │   └── repositories/
 │   └── main.tsx
 ├── supabase/
-│   ├── config.toml
-│   ├── migrations/
-│   └── seed.sql               # donnees fictives
+│   ├── migrations/            # appliquees via le SQL Editor (voir README)
+│   └── tests/                 # tests du schema avec PGlite
 ├── .env.example               # VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
 ├── .nvmrc                     # Node LTS
 ├── README.md
@@ -615,9 +620,9 @@ tous a 0                      => []
 - quatre tickets CSE ; quatre classiques ; partie mixte ; montant perso ; offert ;
 - modification d'une ancienne partie apres changement de tarif : les lignes non modifiees gardent leur montant, une ligne dont le mode change prend le tarif actuel.
 
-### Base (optionnel MVP)
+### Base
 
-- tests SQL (`supabase test db` / pgTAP) des contraintes et des policies RLS (un utilisateur non lie ne lit rien).
+- tests du schema avec **PGlite** (PostgreSQL dans Node, sans Docker), lances par `npm test` : aucun droit pour `anon`, un compte non lie ne lit rien, parcours de liaison, RPC transactionnelles, contraintes, RLS admin, dernier admin.
 
 ### E2E (phase 6)
 
@@ -644,8 +649,8 @@ tous a 0                      => []
 
 ### Base (Supabase)
 
-- Developpement local : `supabase start` (Docker) + `supabase db reset` (migrations + seed).
-- Production : `supabase db push` lance manuellement pour le MVP. Automatisation via GitHub Actions (secret `SUPABASE_ACCESS_TOKEN`) en option plus tard.
+- Tests : PGlite via `npm test` (pas de Docker necessaire).
+- Production : migrations appliquees manuellement dans le SQL Editor Supabase, dans l'ordre des fichiers (procedure et creation du premier admin dans le README).
 
 ### 14.3 Persistance et sauvegardes (decision 2026-11-19 : A + B)
 
@@ -706,7 +711,7 @@ Une fois le MVP stable : manifest + service worker (`vite-plugin-pwa`) pour l'aj
 ### Phase 3 - Base de donnees
 
 - migrations : tables, contraintes, `settings`, fonctions RPC, RLS ;
-- seed fictif ; generation des types TS ;
+- tests du schema (PGlite) ; types des lignes declares dans les repositories ;
 - repositories frontend.
 
 ### Phase 4 - MVP UI

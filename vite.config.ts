@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/padel-tricount/',
   plugins: [react()],
   test: {
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'supabase/tests/**/*.test.ts'],
+    testTimeout: 20_000,
   },
 })
