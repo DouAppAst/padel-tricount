@@ -309,6 +309,7 @@ Remboursements reels effectues, ou ajustements de reprise.
 - `to_participant_id uuid not null references participants` - celui qui le recoit
 - `amount_cents integer not null check (amount_cents > 0)`
 - `kind text not null default 'REFUND' check (kind in ('REFUND','OPENING'))`
+- `cse_tickets smallint not null default 0` - nombre de tickets CSE donnes dans le remboursement (`REFUND` uniquement) ; seul `amount_cents` compte pour les soldes. L'application propose de rembourser d'abord en tickets (valeur = prix CSE du club par defaut, nombre = partie entiere de dette / prix), puis le reste en argent : 11 EUR = 2 tickets, 15 EUR = 2 tickets + 4 EUR, 2 EUR = 2 EUR. Le nombre de tickets reste modifiable.
 - `settled_at date not null`
 - `comment text null`
 - `created_by`, `updated_by uuid null references participants`

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { computeBalances, netBalances, type ParticipantBalance } from '../domain/balances'
+import { cseTicketValue } from '../domain/cseTickets'
 import { simplifyDebts } from '../domain/debtSimplification'
 import type { ParticipantId, Transfer } from '../domain/models'
 import * as account from './repositories/account'
@@ -102,6 +103,14 @@ export const useSetSettlementDeleted = () =>
       settlements.setSettlementDeleted(id, deleted),
     [queryKeys.settlements],
   )
+
+/** Value of one CSE ticket used to suggest refunds in tickets (null if no club accepts them). */
+export function useCseTicketValue(): number | null {
+  const venuesQuery = useVenues()
+  const settingsQuery = useSettings()
+  if (!venuesQuery.data || !settingsQuery.data) return null
+  return cseTicketValue(venuesQuery.data, settingsQuery.data.defaultVenueId)
+}
 
 export interface BalancesView {
   balances: Map<ParticipantId, ParticipantBalance>

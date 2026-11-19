@@ -337,6 +337,32 @@ describe('settlements', () => {
     await rows('admin', 'select public.set_settlement_deleted($1, true)', [id])
   })
 
+  it('a refund can include CSE tickets, opening balances cannot', async () => {
+    await one(
+      'bob',
+      `select public.save_settlement(null, $1, $2, 1500, null, null, 'REFUND', 2) as id`,
+      [P.bob, P.alice],
+    )
+    expect(await rows('alice', 'select amount_cents, cse_tickets from public.settlements')).toEqual(
+      [{ amount_cents: 1500, cse_tickets: 2 }],
+    )
+    await expect(
+      rows('admin', `select public.save_settlement(null, $1, $2, 1100, null, null, 'OPENING', 2)`, [
+        P.bob,
+        P.alice,
+      ]),
+    ).rejects.toThrow(/check constraint/)
+  })
+
+  it('anonymous visitors cannot call the new signature', async () => {
+    await expect(
+      rows('anon', `select public.save_settlement(null, $1, $2, 550, null, null, 'REFUND', 1)`, [
+        P.bob,
+        P.alice,
+      ]),
+    ).rejects.toThrow(/permission denied/)
+  })
+
   it('an edit cannot turn a refund into an opening balance', async () => {
     const id = await save('bob', P.bob, P.alice, 550)
     await expect(

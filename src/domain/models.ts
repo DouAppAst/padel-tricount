@@ -54,6 +54,8 @@ export interface Settlement {
   amountCents: Cents
   kind: SettlementKind
   settledAt: string
+  /** Number of CSE tickets handed over as part of the amount (refunds only). */
+  cseTickets?: number
   comment?: string | null
   createdById?: ParticipantId | null
   updatedAt?: string

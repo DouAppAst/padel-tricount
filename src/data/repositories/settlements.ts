@@ -11,6 +11,7 @@ interface SettlementRow {
   kind: SettlementKind
   settled_at: string
   comment: string | null
+  cse_tickets: number
   created_by: string | null
   updated_at: string
   deleted_at: string | null
@@ -18,7 +19,7 @@ interface SettlementRow {
 
 const COLUMNS =
   'id, from_participant_id, to_participant_id, amount_cents, kind, settled_at, comment, ' +
-  'created_by, updated_at, deleted_at'
+  'cse_tickets, created_by, updated_at, deleted_at'
 
 const toSettlement = (row: SettlementRow): Settlement => ({
   id: row.id,
@@ -28,6 +29,7 @@ const toSettlement = (row: SettlementRow): Settlement => ({
   kind: row.kind,
   settledAt: row.settled_at,
   comment: row.comment,
+  cseTickets: row.cse_tickets,
   createdById: row.created_by,
   updatedAt: row.updated_at,
   deletedAt: row.deleted_at,
@@ -53,6 +55,7 @@ export interface SaveRefundInput {
   amountCents: number
   settledAt?: string
   comment?: string | null
+  cseTickets?: number
 }
 
 async function save(input: SaveRefundInput, kind: SettlementKind): Promise<string> {
@@ -65,6 +68,7 @@ async function save(input: SaveRefundInput, kind: SettlementKind): Promise<strin
       p_settled_at: input.settledAt ?? null,
       p_comment: input.comment ?? null,
       p_kind: kind,
+      p_cse_tickets: input.cseTickets ?? 0,
     }),
   ) as string
 }

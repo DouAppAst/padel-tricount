@@ -19,13 +19,15 @@ import { useSetSettlementDeleted } from '../../data/queries'
 import { formatDate } from '../../domain/dates'
 import type { Settlement } from '../../domain/models'
 import { formatCents } from '../../domain/money'
+import { ticketsLabel } from './cseLabel'
 
 /** Opening balances are stored reversed (creditor -> debtor), so show them as a debt. */
 function describe(settlement: Settlement, nameOf: (id: string) => string): string {
   const amount = formatCents(settlement.amountCents)
   return settlement.kind === 'OPENING'
     ? `${nameOf(settlement.toId)} devait ${amount} à ${nameOf(settlement.fromId)}`
-    : `${nameOf(settlement.fromId)} a remboursé ${amount} à ${nameOf(settlement.toId)}`
+    : `${nameOf(settlement.fromId)} a remboursé ${amount} à ${nameOf(settlement.toId)}` +
+        (settlement.cseTickets ? `, dont ${ticketsLabel(settlement.cseTickets)}` : '')
 }
 
 export function SettlementsList({ settlements }: { settlements: Settlement[] }) {
