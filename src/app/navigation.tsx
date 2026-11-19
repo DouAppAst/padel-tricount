@@ -1,7 +1,7 @@
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import HomeIcon from '@mui/icons-material/Home'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
-import SportsTennisIcon from '@mui/icons-material/SportsTennis'
+import { PadelRacketIcon } from '../components/PadelRacketIcon'
 import type { ReactElement } from 'react'
 
 export interface NavItem {
@@ -13,7 +13,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Accueil', path: '/', icon: <HomeIcon /> },
-  { label: 'Parties', path: '/parties', icon: <SportsTennisIcon /> },
+  { label: 'Parties', path: '/parties', icon: <PadelRacketIcon /> },
   { label: 'Soldes', path: '/soldes', icon: <AccountBalanceWalletIcon /> },
   { label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon />, adminOnly: true },
 ]
