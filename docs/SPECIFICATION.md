@@ -103,8 +103,8 @@ Deploiement automatique via GitHub Actions a chaque push sur `main`.
 Points d'attention offre gratuite :
 
 - **Region UE** (ex. `eu-west-3` Paris) : les noms et emails des collegues sont des donnees personnelles (RGPD).
-- **Mise en pause apres 7 jours sans activite.** Un usage hebdomadaire suffit normalement ; en complement, un workflow GitHub Actions planifie (`schedule`) peut faire une requete de lecture legere tous les 3 jours. Le reveil d'un projet en pause est manuel depuis le dashboard Supabase.
-- **Pas de restauration point-in-time.** Prevoir un export CSV depuis l'admin (phase 6).
+- **Mise en pause apres 7 jours sans activite.** Les donnees sont conservees mais l'application ne repond plus. Le workflow de sauvegarde (section 14.3), execute tous les 3 jours, sert aussi de keep-alive. Le reveil d'un projet en pause est manuel depuis le dashboard Supabase.
+- **Aucune sauvegarde restaurable sur l'offre gratuite.** Strategie de sauvegarde en section 14.3.
 
 GitHub Pages ne contient que l'application statique. Aucune donnee metier (parties, participants, soldes, remboursements) n'est stockee dans le repository Git.
 
@@ -457,7 +457,7 @@ Sur chaque dette suggeree (`Bruno doit 5,50 EUR a Alice`) : action **Marquer com
 - gerer les administrateurs ;
 - modifier les tarifs et le lieu par defaut ;
 - saisir les soldes d'ouverture (reprise Excel) ;
-- export CSV (phase 6).
+- export JSON/CSV de sauvegarde (phase 6, section 14.3).
 
 Desactivation preferee a la suppression des qu'un participant apparait dans l'historique.
 
@@ -540,7 +540,7 @@ padel-tricount/
 ├── .github/workflows/
 │   ├── ci.yml                 # lint + typecheck + tests sur PR
 │   ├── deploy-pages.yml       # build + deploy sur push main
-│   └── keep-alive.yml         # ping Supabase planifie (optionnel)
+│   └── backup.yml             # pg_dump chiffre tous les 3 jours (+ keep-alive)
 ├── src/
 │   ├── app/                   # App.tsx, router.tsx (HashRouter), theme.ts, AuthGate.tsx
 │   ├── components/            # composants UI partages
@@ -647,6 +647,35 @@ tous a 0                      => []
 - Developpement local : `supabase start` (Docker) + `supabase db reset` (migrations + seed).
 - Production : `supabase db push` lance manuellement pour le MVP. Automatisation via GitHub Actions (secret `SUPABASE_ACCESS_TOKEN`) en option plus tard.
 
+### 14.3 Persistance et sauvegardes (decision 2026-11-19 : A + B)
+
+Persistance :
+
+- Les donnees metier (participants, parties, lignes, remboursements, tarifs, demandes de liaison) vivent **uniquement** dans PostgreSQL Supabase (disque persistant, region UE). Elles survivent aux redemarrages et maintenances, gerees par Supabase.
+- Les **soldes et dettes ne sont jamais stockes** : ils sont recalcules a chaque affichage depuis les parties et remboursements (`src/domain`). Aucune desynchronisation possible.
+- GitHub Pages ne sert que des fichiers statiques ; le navigateur ne garde que la session et un cache TanStack Query.
+- Suppression logique (`deleted_at`) : une suppression via l'application est toujours recuperable.
+
+**A - Export manuel (ecran Admin)**
+
+- Bouton "Exporter" : telecharge un fichier **JSON** complet (toutes les tables, y compris les elements supprimes logiquement) et un **CSV** des parties lisible dans Excel.
+- Genere cote navigateur avec les droits de lecture de l'admin ; aucune infrastructure supplementaire.
+
+**B - Sauvegarde automatique chiffree (`.github/workflows/backup.yml`)**
+
+- Declenchement : `schedule` tous les 3 jours (sert aussi de keep-alive) + `workflow_dispatch`.
+- `pg_dump` (client PostgreSQL de meme version majeure que le serveur, installe depuis le depot PGDG) via l'URL du **Session pooler** Supabase (les runners GitHub n'ont pas d'IPv6, la connexion directe Supabase est IPv6 uniquement).
+- Schemas sauvegardes : `public` et `auth` (comptes et liens `auth_user_id`).
+- Chiffrement symetrique `gpg --symmetric --cipher-algo AES256` avant upload ; le dump en clair n'est jamais conserve.
+- Stockage : artifact du run (`actions/upload-artifact`), retention **90 jours**. Les artifacts d'un repo public sont telechargeables par les utilisateurs connectes, d'ou le chiffrement obligatoire.
+- Secrets du repository (Settings > Secrets and variables > Actions > **Secrets**) :
+  - `SUPABASE_DB_URL` : chaine de connexion du Session pooler (contient le mot de passe de la base) ;
+  - `BACKUP_PASSPHRASE` : phrase de passe de chiffrement, **a conserver aussi hors de GitHub** (gestionnaire de mots de passe), sinon les sauvegardes sont inutilisables.
+- Limite GitHub : les workflows planifies d'un repo public sont **desactives apres 60 jours sans activite sur le repo** (GitHub previent par email). Il suffit de les reactiver dans l'onglet Actions.
+- Restauration documentee dans le README : telecharger l'artifact, `gpg --decrypt`, puis `psql` vers un projet Supabase (nouveau ou existant).
+
+Bonnes pratiques du compte Supabase : email durable controle par l'equipe, double authentification, un deuxieme membre admin dans l'organisation Supabase.
+
 ---
 
 ## 15. PWA - evolution
@@ -697,7 +726,7 @@ Une fois le MVP stable : manifest + service worker (`vite-plugin-pwa`) pour l'aj
 ### Phase 6 - Finition
 
 - responsive, feedback, erreurs reseau, loading states ;
-- export CSV ; keep-alive ;
+- export JSON/CSV (Admin) ; workflow de sauvegarde chiffree + keep-alive (section 14.3) ;
 - tests E2E ; PWA eventuelle.
 
 ---
@@ -742,6 +771,7 @@ Une fois le MVP stable : manifest + service worker (`vite-plugin-pwa`) pour l'aj
 - `solde = paye - consomme + emis - recus` ; somme des soldes = 0.
 - Enregistrement d'une partie = une transaction (RPC).
 - Suppression logique pour parties et remboursements ; desactivation pour participants.
+- Soldes jamais stockes, toujours recalcules ; sauvegardes : export manuel + pg_dump chiffre automatique.
 - Authentification Supabase email + mot de passe, sans email envoye ; chaque compte lie a un participant apres validation admin.
 - Cout zero : offres gratuites uniquement.
 - Logique de dette testable independamment de React.
