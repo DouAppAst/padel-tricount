@@ -40,6 +40,8 @@ import {
 } from '../../data/queries'
 import type { ParticipantWithAccount } from '../../data/repositories/participants'
 import { formatDate } from '../../domain/dates'
+import { OpeningBalancesCard } from './OpeningBalancesCard'
+import { SettingsCard } from './SettingsCard'
 
 export function AdminPage() {
   const me = useMe()
@@ -51,6 +53,8 @@ export function AdminPage() {
       </Typography>
       <LinkRequestsCard />
       <ParticipantsCard />
+      <SettingsCard />
+      <OpeningBalancesCard />
     </Stack>
   )
 }

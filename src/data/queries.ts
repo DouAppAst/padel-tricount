@@ -78,7 +78,8 @@ export const useSaveRefund = () =>
   useInvalidatingMutation(settlements.saveRefund, [queryKeys.settlements])
 export const useSaveOpeningDebt = () =>
   useInvalidatingMutation(
-    (debt: Transfer) => settlements.saveOpeningDebt(debt),
+    ({ debt, settledAt, comment }: { debt: Transfer; settledAt: string; comment: string }) =>
+      settlements.saveOpeningDebt(debt, { settledAt, comment }),
     [queryKeys.settlements],
   )
 export const useSetSettlementDeleted = () =>
