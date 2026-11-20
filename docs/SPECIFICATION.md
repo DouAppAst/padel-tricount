@@ -630,9 +630,9 @@ tous a 0                      => []
 
 - tests du schema avec **PGlite** (PostgreSQL dans Node, sans Docker), lances par `npm test` : aucun droit pour `anon`, un compte non lie ne lit rien, parcours de liaison, RPC transactionnelles, contraintes, RLS admin, dernier admin.
 
-### E2E (phase 6)
+### E2E
 
-- Playwright : connexion mockee, saisie d'une partie, verification du solde.
+Non mis en place pour le MVP : ils exigeraient un compte de test permanent sur le projet Supabase de production (le projet gratuit est unique). La logique metier (`src/domain`) et la base (PGlite) sont couvertes par les tests unitaires ; l'interface est verifiee manuellement sur mobile et desktop.
 
 ---
 
@@ -676,7 +676,7 @@ Persistance :
 
 - Declenchement : `schedule` tous les 3 jours (sert aussi de keep-alive) + `workflow_dispatch`.
 - `pg_dump` (client PostgreSQL de meme version majeure que le serveur, installe depuis le depot PGDG) via l'URL du **Session pooler** Supabase (les runners GitHub n'ont pas d'IPv6, la connexion directe Supabase est IPv6 uniquement).
-- Schemas sauvegardes : `public` et `auth` (comptes et liens `auth_user_id`).
+- Contenu : schemas `public` et `private` (tables, donnees, fonctions, RLS, droits) + donnees de `auth.users` / `auth.identities` (comptes, pour conserver les liens `auth_user_id`).
 - Chiffrement symetrique `gpg --symmetric --cipher-algo AES256` avant upload ; le dump en clair n'est jamais conserve.
 - Stockage : artifact du run (`actions/upload-artifact`), retention **90 jours**. Les artifacts d'un repo public sont telechargeables par les utilisateurs connectes, d'ou le chiffrement obligatoire.
 - Secrets du repository (Settings > Secrets and variables > Actions > **Secrets**) :
@@ -691,7 +691,7 @@ Bonnes pratiques du compte Supabase : email durable controle par l'equipe, doubl
 
 ## 15. PWA - evolution
 
-Une fois le MVP stable : manifest + service worker (`vite-plugin-pwa`) pour l'ajout a l'ecran d'accueil. Attention au cache : prevoir une mise a jour automatique pour ne pas servir une ancienne version. Secondaire par rapport a la fiabilite des calculs.
+Fait (phase 6) : `manifest.webmanifest` + icones (dont `apple-touch-icon` pour iOS) pour l'ajout a l'ecran d'accueil en plein ecran. **Pas de service worker**, volontairement : pas de risque de servir une ancienne version ou d'anciens soldes ; l'application necessite de toute facon le reseau.
 
 ---
 
@@ -736,9 +736,9 @@ Une fois le MVP stable : manifest + service worker (`vite-plugin-pwa`) pour l'aj
 
 ### Phase 6 - Finition
 
-- responsive, feedback, erreurs reseau, loading states ;
+- responsive, feedback, erreurs reseau, loading states, ecran d'erreur de dernier recours ;
 - export JSON/CSV (Admin) ; workflow de sauvegarde chiffree + keep-alive (section 14.3) ;
-- tests E2E ; PWA eventuelle.
+- PWA (manifest, icones) ; E2E ecartes (voir section 13).
 
 ---
 

@@ -74,3 +74,48 @@ Pour le **dernier admin** (personne pour valider sa liaison) : après suppressio
 update public.participants set auth_user_id = (select id from auth.users where email = 'ton.email@example.com')
 where display_name = 'Prénom';
 ```
+
+## Sauvegardes
+
+Les données vivent uniquement dans Supabase (offre gratuite, sans sauvegarde restaurable). Deux protections :
+
+- **Export manuel** : écran Admin > _Sauvegarde_ : JSON complet (toutes les tables) et fichiers CSV lisibles dans Excel.
+- **Sauvegarde automatique** : [.github/workflows/backup.yml](.github/workflows/backup.yml), tous les 3 jours. Le même workflow « réveille » Supabase, dont les projets gratuits se mettent en pause après 7 jours sans activité.
+
+### Mettre en place la sauvegarde automatique (une fois)
+
+1. Supabase > bouton **Connect** (en haut) > **Session pooler** : copier l'URI `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-…pooler.supabase.com:5432/postgres` et remplacer `[YOUR-PASSWORD]` par le mot de passe de la base (s'il contient des caractères spéciaux comme `@`, `#`, `/`, les encoder, ou réinitialiser le mot de passe dans Database > Settings avec uniquement lettres et chiffres). La connexion directe ne fonctionne pas depuis GitHub (IPv6 uniquement).
+2. Choisir une **phrase de passe de chiffrement** longue et la ranger dans un gestionnaire de mots de passe : **sans elle, les sauvegardes sont illisibles**.
+3. GitHub > Settings > Secrets and variables > Actions > onglet **Secrets** > _New repository secret_ :
+   - `SUPABASE_DB_URL` : l'URI de l'étape 1 ;
+   - `BACKUP_PASSPHRASE` : la phrase de l'étape 2.
+4. Onglet **Actions** > _Backup and keep-alive_ > **Run workflow**, puis vérifier que le run est vert et qu'un fichier `padel-tricount-AAAA-MM-JJ` apparaît dans ses _Artifacts_.
+
+Chaque sauvegarde est conservée 90 jours. GitHub désactive les workflows planifiés après 60 jours sans commit sur le dépôt (il prévient par email) : il suffit alors de les réactiver dans l'onglet Actions.
+
+### Restaurer une sauvegarde
+
+1. Télécharger l'artifact du run voulu (onglet Actions) et le dézipper : on obtient `padel-tricount-AAAA-MM-JJ.tar.gz.gpg`.
+2. Déchiffrer (macOS : `brew install gnupg` ; outils PostgreSQL : `brew install libpq`) :
+
+   ```bash
+   gpg --decrypt padel-tricount-AAAA-MM-JJ.tar.gz.gpg | tar xzf -
+   ```
+
+   On obtient `app.sql` (schémas `public` et `private` : tables, données, fonctions, règles d'accès) et `auth.sql` (comptes de connexion).
+
+3. Dans un **nouveau** projet Supabase (même configuration que la section _Déploiement_), avec l'URI _Session pooler_ du nouveau projet :
+
+   ```bash
+   psql "$NEW_DB_URL" -v ON_ERROR_STOP=1 -f auth.sql
+   psql "$NEW_DB_URL" -v ON_ERROR_STOP=1 -f app.sql
+   ```
+
+4. Mettre à jour les variables GitHub `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` avec le nouveau projet et relancer le déploiement.
+
+## Installer l'application sur un téléphone
+
+- **iPhone (Safari)** : bouton Partager > _Sur l'écran d'accueil_.
+- **Android (Chrome)** : menu ⋮ > _Ajouter à l'écran d'accueil_ / _Installer l'application_.
+
+L'application s'ouvre alors en plein écran avec son icône. Il n'y a pas de mode hors ligne (volontairement : on évite qu'un téléphone affiche une ancienne version ou d'anciens soldes).

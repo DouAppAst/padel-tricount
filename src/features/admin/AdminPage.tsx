@@ -40,6 +40,7 @@ import {
 } from '../../data/queries'
 import type { ParticipantWithAccount } from '../../data/repositories/participants'
 import { formatDate } from '../../domain/dates'
+import { ExportCard } from './ExportCard'
 import { OpeningBalancesCard } from './OpeningBalancesCard'
 import { VenuesCard } from './VenuesCard'
 
@@ -55,6 +56,7 @@ export function AdminPage() {
       <ParticipantsCard />
       <VenuesCard />
       <OpeningBalancesCard />
+      <ExportCard />
     </Stack>
   )
 }
