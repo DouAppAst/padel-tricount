@@ -84,7 +84,7 @@ Les données vivent uniquement dans Supabase (offre gratuite, sans sauvegarde re
 
 ### Mettre en place la sauvegarde automatique (une fois)
 
-1. Supabase > bouton **Connect** (en haut) > **Session pooler** : copier l'URI `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-…pooler.supabase.com:5432/postgres` et remplacer `[YOUR-PASSWORD]` par le mot de passe de la base (s'il contient des caractères spéciaux comme `@`, `#`, `/`, les encoder, ou réinitialiser le mot de passe dans Database > Settings avec uniquement lettres et chiffres). La connexion directe ne fonctionne pas depuis GitHub (IPv6 uniquement).
+1. Supabase > bouton **Connect** (en haut) > **Direct** (Connection string), méthode **Session pooler** (port 5432, serveur `…pooler.supabase.com`) : copier l'URI `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-…pooler.supabase.com:5432/postgres` et remplacer `[YOUR-PASSWORD]` par le mot de passe de la base (s'il contient des caractères spéciaux comme `@`, `#`, `/`, les encoder, ou réinitialiser le mot de passe dans Database > Settings avec uniquement lettres et chiffres). La connexion directe ne fonctionne pas depuis GitHub (IPv6 uniquement).
 2. Choisir une **phrase de passe de chiffrement** longue et la ranger dans un gestionnaire de mots de passe : **sans elle, les sauvegardes sont illisibles**.
 3. GitHub > Settings > Secrets and variables > Actions > onglet **Secrets** > _New repository secret_ :
    - `SUPABASE_DB_URL` : l'URI de l'étape 1 ;
