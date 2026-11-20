@@ -43,7 +43,12 @@ jobs:
       - name: Install the PostgreSQL client matching the server
         if: steps.secrets.outputs.ready == 'true'
         run: |
-          major=$(psql "$SUPABASE_DB_URL" -tAc 'show server_version_num' | cut -c1-2)
+          # Never print psql errors: they can echo parts of the connection string (password).
+          if ! version=$(psql "$SUPABASE_DB_URL" -tAc 'show server_version_num' 2>/dev/null); then
+            echo "::error::Cannot connect with SUPABASE_DB_URL. Check the Session pooler URI (port 5432) and use a database password made of letters and digits only."
+            exit 1
+          fi
+          major=${version:0:2}
           echo "Server major version: $major"
           sudo apt-get install -y -qq postgresql-common > /dev/null
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
@@ -53,6 +58,7 @@ jobs:
       - name: Dump and encrypt
         if: steps.secrets.outputs.ready == 'true'
         run: |
+          set -o pipefail
           umask 077
           mkdir dump
           # Application schemas: tables, data, functions, policies and grants.
