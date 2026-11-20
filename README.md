@@ -96,7 +96,7 @@ Chaque sauvegarde est conservée 90 jours. GitHub désactive les workflows plani
 ### Restaurer une sauvegarde
 
 1. Télécharger l'artifact du run voulu (onglet Actions) et le dézipper : on obtient `padel-tricount-AAAA-MM-JJ.tar.gz.gpg`.
-2. Déchiffrer (macOS : `brew install gnupg` ; outils PostgreSQL : `brew install libpq`) :
+2. Déchiffrer (macOS avec Homebrew : `brew install gnupg libpq` ; avec MacPorts : `sudo port install gnupg2 postgresql17` puis `sudo port select --set postgresql postgresql17`, en prenant la version majeure affichée par le run de sauvegarde) :
 
    ```bash
    gpg --decrypt padel-tricount-AAAA-MM-JJ.tar.gz.gpg | tar xzf -
